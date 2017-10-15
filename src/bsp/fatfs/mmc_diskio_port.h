@@ -6,7 +6,7 @@
 
 #define CS_LOW()					LPC_GPIO1->FIOCLR = ex(21)
 #define CS_HIGH()					LPC_GPIO1->FIOSET = ex(21)
-#define MMC_CD()					TRUE
+#define MMC_CD()					(!(LPC_GPIO3->FIOPIN & ex(25)))
 #define MMC_WP()					FALSE
 #define FCLK_SLOW()					ssp0ClockSlow()
 #define FCLK_FAST()					ssp0ClockFast()

@@ -9,6 +9,12 @@ void power_on(void)
 	LPC_GPIO1->FIOMASK &= rex(21);
 	LPC_GPIO1->FIODIR |= ex(21);
 
+	/* CD pin configuration */
+	pinSel(3, 25, 0);
+	pinMode(3, 25, 0);
+	pinModeOD(3, 25, 0);
+	LPC_GPIO3->FIODIR &= rex(25);
+
 	/* power pin configuration */
 	pinSel(3, 26, 0);
 	pinMode(3, 26, 0);
