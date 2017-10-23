@@ -77,6 +77,7 @@ INT8U uart0Read(char **str)
 
 INT8U uart0Print(char *str)
 {
+	OS_CPU_SR cpu_sr;
 	INT8U err;
 	char temp;
 
@@ -86,11 +87,13 @@ INT8U uart0Print(char *str)
 	if (temp == '\0') {
 		return 0;
 	}
+	OS_ENTER_CRITICAL();
 	do {
 		LPC_UART0->THR = temp;
 		uart0TxCnt++;
 		temp = str[uart0TxCnt];
 	} while ((temp != '\0') && (uart0TxCnt < 16));
+	OS_EXIT_CRITICAL();
 	OSSemPend(uart0TxRdy, UART0_TX_TIMEOUT, &err);
 	return err;
 }
