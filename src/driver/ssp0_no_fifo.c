@@ -1,13 +1,10 @@
 #include "pin.h"
 #include "ssp0.h"
 
-#define SSP0_FIFO_SIZE		8
-
 static uint8 *ssp0RxBuf;
 static uint8 *ssp0TxBuf;
 static uint16 ssp0Size;
-static uint16 ssp0RxCnt;
-static uint16 ssp0TxCnt;
+static uint16 ssp0Cnt;
 static uint8 ssp0Fill;
 static OS_EVENT *ssp0Rdy;
 
@@ -61,71 +58,41 @@ void ssp0Init(void)
 
 INT8U ssp0BufR(uint8 *buf, uint16 size, uint8 fill)
 {
-	OS_CPU_SR cpu_sr;
 	INT8U err;
 
 	ssp0RxBuf = buf;
 	ssp0Size = size;
-	ssp0RxCnt = 0;
-	ssp0TxCnt = 0;
+	ssp0Cnt = 0;
 	ssp0Fill = fill;
 	ssp0HandlerPtr = ssp0BufRHandler;
-	if (size > SSP0_FIFO_SIZE) {
-		size = SSP0_FIFO_SIZE;
-	}
-	OS_ENTER_CRITICAL();
-	while (ssp0TxCnt < size) {
-		LPC_SSP0->DR = fill;
-		ssp0TxCnt++;
-	}
-	OS_EXIT_CRITICAL();
+	LPC_SSP0->DR = fill;
 	OSSemPend(ssp0Rdy, SSP0_TIMEOUT, &err);
 	return err;
 }
 
 INT8U ssp0BufW(uint8 *buf, uint16 size)
 {
-	OS_CPU_SR cpu_sr;
 	INT8U err;
 
 	ssp0TxBuf = buf;
 	ssp0Size = size;
-	ssp0RxCnt = 0;
-	ssp0TxCnt = 0;
+	ssp0Cnt = 1;
 	ssp0HandlerPtr = ssp0BufWHandler;
-	if (size > SSP0_FIFO_SIZE) {
-		size = SSP0_FIFO_SIZE;
-	}
-	OS_ENTER_CRITICAL();
-	while (ssp0TxCnt < size) {
-		LPC_SSP0->DR = buf[ssp0TxCnt];
-		ssp0TxCnt++;
-	}
-	OS_EXIT_CRITICAL();
+	LPC_SSP0->DR = buf[0];
 	OSSemPend(ssp0Rdy, SSP0_TIMEOUT, &err);
 	return err;
 }
 
 INT8U ssp0BufRw(uint8 *rxBuf, uint8 *txBuf, uint16 size)
 {
-	OS_CPU_SR cpu_sr;
 	INT8U err;
 
 	ssp0RxBuf = rxBuf;
 	ssp0TxBuf = txBuf;
 	ssp0Size = size;
-	ssp0RxCnt = 0;
-	ssp0TxCnt = 0;
+	ssp0Cnt = 0;
 	ssp0HandlerPtr = ssp0BufRwHandler;
-	if (size > SSP0_FIFO_SIZE) {
-		size = SSP0_FIFO_SIZE;
-	}
-	OS_ENTER_CRITICAL();
-	while (ssp0TxCnt < size) {
-		LPC_SSP0->DR = txBuf[ssp0TxCnt];
-		ssp0TxCnt++;
-	}
-	OS_EXIT_CRITICAL();
+	LPC_SSP0->DR = txBuf[0];
 	OSSemPend(ssp0Rdy, SSP0_TIMEOUT, &err);
 	return err;
 }
@@ -149,78 +116,45 @@ void SSP0_IRQHandler(void)
 
 static void ssp0BufRHandler(void)
 {
-	uint8 dummy;
-	uint16 i;
-
-	(void)dummy;
-	while (LPC_SSP0->SR & ex(2)) {
-		ssp0RxBuf[ssp0RxCnt] = LPC_SSP0->DR;
-		ssp0RxCnt++;
-		if (ssp0RxCnt == ssp0Size) {
-			while (LPC_SSP0->SR & ex(2)) {
-				dummy = LPC_SSP0->DR;
-			}
-			LPC_SSP0->ICR = ex(1);
-			OSIntEnter();
-			OSSemPost(ssp0Rdy);
-			OSIntExit();
-		}
-	}
+	ssp0RxBuf[ssp0Cnt] = LPC_SSP0->DR;
 	LPC_SSP0->ICR = ex(1);
-	for (i = 0; (ssp0TxCnt < ssp0Size) && (i < SSP0_FIFO_SIZE); i++) {
+	ssp0Cnt++;
+	if (ssp0Cnt < ssp0Size) {
 		LPC_SSP0->DR = ssp0Fill;
-		ssp0TxCnt++;
+	} else {
+		OSIntEnter();
+		OSSemPost(ssp0Rdy);
+		OSIntExit();
 	}
 }
 
 static void ssp0BufWHandler(void)
 {
 	uint8 dummy;
-	uint16 i;
 
 	(void)dummy;
-	while (LPC_SSP0->SR & ex(2)) {
-		dummy = LPC_SSP0->DR;
-		ssp0RxCnt++;
-		if (ssp0RxCnt == ssp0Size) {
-			while (LPC_SSP0->SR & ex(2)) {
-				dummy = LPC_SSP0->DR;
-			}
-			LPC_SSP0->ICR = ex(1);
-			OSIntEnter();
-			OSSemPost(ssp0Rdy);
-			OSIntExit();
-		}
-	}
+	dummy = LPC_SSP0->DR;
 	LPC_SSP0->ICR = ex(1);
-	for (i = 0; (ssp0TxCnt < ssp0Size) && (i < SSP0_FIFO_SIZE); i++) {
-		LPC_SSP0->DR = ssp0TxBuf[ssp0TxCnt];
-		ssp0TxCnt++;
+	if (ssp0Cnt < ssp0Size) {
+		LPC_SSP0->DR = ssp0TxBuf[ssp0Cnt];
+		ssp0Cnt++;
+	} else {
+		OSIntEnter();
+		OSSemPost(ssp0Rdy);
+		OSIntExit();
 	}
 }
 
 static void ssp0BufRwHandler(void)
 {
-	uint8 dummy;
-	uint16 i;
-
-	(void)dummy;
-	while (LPC_SSP0->SR & ex(2)) {
-		ssp0RxBuf[ssp0RxCnt] = LPC_SSP0->DR;
-		ssp0RxCnt++;
-		if (ssp0RxCnt == ssp0Size) {
-			while (LPC_SSP0->SR & ex(2)) {
-				dummy = LPC_SSP0->DR;
-			}
-			LPC_SSP0->ICR = ex(1);
-			OSIntEnter();
-			OSSemPost(ssp0Rdy);
-			OSIntExit();
-		}
-	}
+	ssp0RxBuf[ssp0Cnt] = LPC_SSP0->DR;
 	LPC_SSP0->ICR = ex(1);
-	for (i = 0; (ssp0TxCnt < ssp0Size) && (i < SSP0_FIFO_SIZE); i++) {
-		LPC_SSP0->DR = ssp0TxBuf[ssp0TxCnt];
-		ssp0TxCnt++;
+	ssp0Cnt++;
+	if (ssp0Cnt < ssp0Size) {
+		LPC_SSP0->DR = ssp0TxBuf[ssp0Cnt];
+	} else {
+		OSIntEnter();
+		OSSemPost(ssp0Rdy);
+		OSIntExit();
 	}
 }

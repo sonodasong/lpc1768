@@ -11,7 +11,7 @@ static OS_EVENT *spiRdy;
 static void (*spiHandlerPtr)(void);
 static void spiBufRHandler(void);
 static void spiBufWHandler(void);
-static void spiBufWRHandler(void);
+static void spiBufRwHandler(void);
 
 void spiInit(void)
 {
@@ -79,15 +79,15 @@ INT8U spiBufW(uint8 *buf, uint16 size)
 	return err;
 }
 
-INT8U spiBufWR(uint8 *txBuf, uint8 *rxBuf, uint16 size)
+INT8U spiBufRw(uint8 *rxBuf, uint8 *txBuf, uint16 size)
 {
 	INT8U err;
 
-	spiTxBuf = txBuf;
 	spiRxBuf = rxBuf;
+	spiTxBuf = txBuf;
 	spiSize = size;
 	spiCnt = 0;
-	spiHandlerPtr = spiBufWRHandler;
+	spiHandlerPtr = spiBufRwHandler;
 	LPC_SPI->SPDR = txBuf[0];
 	OSSemPend(spiRdy, SPI_TIMEOUT, &err);
 	return err;
@@ -149,7 +149,7 @@ static void spiBufWHandler(void)
 	//LPC_SPI->SPINT = ex(0);
 }
 
-static void spiBufWRHandler(void)
+static void spiBufRwHandler(void)
 {
 	uint32 status;
 

@@ -8,7 +8,7 @@
 void spiInit(void);
 INT8U spiBufR(uint8 *buf, uint16 size, uint8 fill);
 INT8U spiBufW(uint8 *buf, uint16 size);
-INT8U spiBufWR(uint8 *txBuf, uint8 *rxBuf, uint16 size);
+INT8U spiBufRw(uint8 *rxBuf, uint8 *txBuf, uint16 size);
 void spiClockSlow(void);
 void spiClockFast(void);
 
